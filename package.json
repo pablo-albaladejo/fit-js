@@ -1,0 +1,34 @@
+{
+  "name": "fit-js",
+  "version": "0.0.1",
+  "description": "fit-js sdk",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "start": "nodemon --exec babel-node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pablo-albaladejo/fit-js.git"
+  },
+  "keywords": [
+    "fit",
+    "js",
+    "sdk"
+  ],
+  "author": "Pablo Albaladejo",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pablo-albaladejo/fit-js/issues"
+  },
+  "homepage": "https://github.com/pablo-albaladejo/fit-js#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.14.8",
+    "@babel/core": "^7.14.8",
+    "@babel/node": "^7.14.7",
+    "@babel/preset-env": "^7.14.8",
+    "nodemon": "^2.0.12"
+  }
+}
