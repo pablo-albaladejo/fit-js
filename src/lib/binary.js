@@ -1,7 +1,15 @@
 import fs from 'fs'
 import { FIT_CONSTANTS } from '.';
 
-const CHECKS_ACTIVE = false
+export const addEndian = (littleEndian, bytes) => {
+    let result = 0;
+    if (!littleEndian) bytes.reverse();
+    for (let i = 0; i < bytes.length; i++) {
+        result += (bytes[i] << (i << 3)) >>> 0;
+    }
+
+    return result;
+}
 
 const toArrayBuffer = (buffer) => {
     var ab = new ArrayBuffer(buffer.length);
@@ -38,88 +46,50 @@ export const getArrayBuffer = (filePath) => {
 
 }
 
-const checkCRC = (fitCRC, calculatedCRC) => {
-    console.log("--- FILE CHECKS ---")
-    console.log(`CRC: ${fitCRC === calculatedCRC}`)
+export const getBaseType = (byte) => {
+    return {
+
+    }
 }
 
-const checkHeader = (fitHeader, crc) => {
-    console.log("--- HEADER CHECKS ---")
-    /* File type */
-    console.log(`.FIT: ${fitHeader.dataType === '.FIT'}`)
-
-    /* CRC */
-    console.log(`CRC: ${fitHeader.crc === crc}`)
-}
 
 export const getFitHeader = (blob) => {
-    const fitHeader = {
-        size: null,
-        protocolVersion: null,
-        profileVersion: null,
-        dataSize: null,
-        dataType: null,
-        crc: null,
+    return {
+        size: blob[0],                                                              /* 0 */
+        protocolVersion: blob[1],                                                   /* 1 */
+        profileVersion: blob[2] + (blob[3] << 8),                                   /* 2 - 3 */
+        dataSize: blob[4] + (blob[5] << 8) + (blob[6] << 16) + (blob[7] << 24),     /* 4 - 7 */
+        dataType: blob.subarray(8, 12)                                              /* 8 - 11 */
+            .reduce((acc, cur) => { return acc + String.fromCharCode(cur) }, ""),
+        crc: blob[12] + (blob[13] << 8),                                            /* 12 - 13 */
     }
-
-    /* 0 */
-    fitHeader.size = blob[0];
-
-    /* 1 */
-    fitHeader.protocolVersion = blob[1];
-
-    /* 2 - 3 */
-    fitHeader.profileVersion = blob[2] + (blob[3] << 8);
-
-    /* 4 - 7 */
-    fitHeader.dataSize = blob[4] + (blob[5] << 8) + (blob[6] << 16) + (blob[7] << 24);
-
-    /* 8 - 11 */
-    let fileTypeString = '';
-    for (let i = 8; i <= 11; i++) {
-        fileTypeString += String.fromCharCode(blob[i]);
-    }
-    fitHeader.dataType = fileTypeString
-
-    /* 12 - 13 */
-    fitHeader.crc = blob[12] + (blob[13] << 8);
-
-    CHECKS_ACTIVE && checkHeader(fitHeader, calculateCRC(blob, 0, 12))
-
-    return fitHeader
 }
 
-export const getMessageHeader = (byteRecord) => {
-    var messageHeader = {
-        compressed: null,
-        type: null,
-        specific: null,
-        reserved: null,
-        localType: null
+export const getMessageHeader = (byte) => {
+    return {
+        compressed: FIT_CONSTANTS.types.compressed[(byte & 128) >> 7],  /* 7 -> 10000000 ->  */
+        message: FIT_CONSTANTS.types.message[(byte & 64) >> 6],         /* 6 -> 01000000 -> 64 */
+        developer_flag: (byte & 32) >> 5 === 1,                         /* 5 -> 00100000 -> 32 */
+        reserved: (byte & 16) >> 4,                                     /* 4 -> 00010000 -> 16 */
+        localType: (byte & 15)                                          /* 0 - 3 -> 00001111 -> 15 */
     }
-
-    /* 7 -> 10000000 ->  */
-    messageHeader.compressed = FIT_CONSTANTS.types.compressed[(byteRecord & 128) >> 7]
-
-    /* 6 -> 01000000 -> 64 */
-    messageHeader.type = FIT_CONSTANTS.types.message[(byteRecord & 64) >> 6]
-
-    /* 5 -> 00100000 -> 32 */
-    messageHeader.specific = (byteRecord & 32) >> 5
-
-    /* 4 -> 00010000 -> 16 */
-    messageHeader.reserved = (byteRecord & 16) >> 4
-
-    /* 0 - 3 -> 00001111 -> 15 */
-    messageHeader.localType = (byteRecord & 15)
-
-    return messageHeader
 }
 
-export const getFitCRC = (blob, fitHeader) => {
-    const fitCRC = blob[blob.length - 2] + (blob[blob.length - 1] << 8);
+export const getFitCRC = (blob) => {
+    //checkCRC(fitCRC, calculateCRC(blob, fitHeader.size, fitHeader.size + fitHeader.dataSize))
+    return blob[blob.length - 2] + (blob[blob.length - 1] << 8)
+}
 
-    CHECKS_ACTIVE && checkCRC(fitCRC, calculateCRC(blob, fitHeader.size, fitHeader.size + fitHeader.dataSize))
+export const getDefinitionHeader = (blob, offset) => {
+    const reserved = blob[offset]
+    const littleEndian = blob[offset + 1] === 0
+    const globalMessageNumber = addEndian(littleEndian, [blob[offset + 2], blob[offset + 3]])
+    const numberOfFields = blob[offset + 4]
 
-    return fitCRC
+    return {
+        reserved,
+        littleEndian,
+        globalMessageNumber,
+        numberOfFields
+    }
 }
