@@ -1,5 +1,20 @@
+import util from 'util'
 import { FIT_CONSTANTS } from '.'
-import { getArrayBuffer, getFitHeader, getFitCRC, getMessageHeader, getBaseType, getDefinitionHeader } from './binary'
+import { getArrayBuffer, getFitHeader, getFitCRC, getMessageHeader, getDefinitionHeader, getDataValue, addEndian } from './binary'
+
+const formatByType = (data, type, scale, offset) => {
+    switch (type) {
+        //case 'date_time': return new Date((data * 1000) + 631065600000);
+        case 'sint32':
+        case 'sint16':
+            return data * FIT_CONSTANTS.scConst;
+        default:
+            if (FIT_CONSTANTS.types[type] && FIT_CONSTANTS.types[type][data] !== undefined) {
+                return FIT_CONSTANTS.types[type][data];
+            }
+            return scale ? data / scale + offset : data;;
+    }
+}
 
 const getDefinitionContent = (blob, offset, devFlag) => {
     var innerOffset = 5
@@ -12,11 +27,11 @@ const getDefinitionContent = (blob, offset, devFlag) => {
         const message_type_field = blob[offset + innerOffset]
         const message_type_size = blob[offset + innerOffset + 1]
         const message_type_base_type = blob[offset + innerOffset + 2]
-
         fields.push({
             type: message_type[message_type_field],
             size: message_type_size,
-            baseType: FIT_CONSTANTS.types.fit_base_type[message_type_base_type]
+            baseType: FIT_CONSTANTS.types.fit_base_type[message_type_base_type],
+            littleEndian: defHeader.littleEndian
         })
 
         innerOffset += 3
@@ -37,21 +52,61 @@ const getDefinitionContent = (blob, offset, devFlag) => {
 
 const getDataContent = (blob, offset, devFlag, definition) => {
     var innerOffset = 0
-    for (let i = 0; i < definition.fields.length; i++) {
-        const field = definition.fields[i]
-        innerOffset += field.baseType.bytes
+    var dataContent = []
+    for (let definitionField of definition.fields) {
+        const current = offset + innerOffset
+        const buff = blob.subarray(current, current + definitionField.baseType.bytes)
+        const dataValue = addEndian(definition.littleEndian, buff)
+        dataContent.push(dataValue)
+
+        innerOffset += definitionField.size
     }
     return {
-        dataContent: {},
+        dataContent,
         innerOffset
     }
 }
 
-const getFitMessages = (blob, fitHeader) => {
-    var offset = fitHeader.size
-    var entries = {}
+const createMessageRecord = (definition) => {
+    return {
+        fields: definition.fields,
+        data: []
+    }
+}
 
-    while (offset < fitHeader.dataSize) {
+const getFitMessages = (blob, fitHeader) => {
+    const rawMessages = getRawFitMessages(blob, fitHeader)
+    const cleanMessages = {}
+
+    Object.keys(rawMessages).forEach((key) => {
+        const rawMessage = rawMessages[key]
+
+        cleanMessages[key] = {
+            fields: [],
+            data: rawMessage.data
+        }
+        rawMessage.fields.forEach((item, field_index) => {
+            
+            rawMessage.data.forEach(data_row => {
+                data_row[field_index] = formatByType(data_row[field_index], item.type.type, item.type.scale, item.type.offset)
+            })
+
+            cleanMessages[key].fields.push({ name: item.type.field, units: item.type.units })
+        })
+
+    })
+
+    console.log(util.inspect(cleanMessages, false, null, true /* enable colors */))
+    return cleanMessages;
+}
+
+
+const getRawFitMessages = (blob, fitHeader) => {
+    var offset = fitHeader.size
+    var definitions = {}
+    var messages = {}
+
+    while (offset <= fitHeader.dataSize) {
 
         const messageHeader = getMessageHeader(blob[offset])
         offset++
@@ -62,30 +117,29 @@ const getFitMessages = (blob, fitHeader) => {
                 innerOffset
             } = getDefinitionContent(blob, offset, messageHeader.developer_flag)
 
-            entries[messageHeader.localType] = {
-                definition: definitionContent,
-                data: []
-            }
+
+            messages[definitionContent.name] = createMessageRecord(definitionContent)
+            definitions[messageHeader.localType] = definitionContent
 
 
             offset += innerOffset
         } else {
-            const definition = entries[messageHeader.localType].definition
+            const definition = definitions[messageHeader.localType]
 
             const {
                 dataContent,
                 innerOffset
             } = getDataContent(blob, offset, messageHeader.developer_flag, definition)
 
-            entries[messageHeader.localType].data.push(dataContent)
+            messages[definition.name].data.push(dataContent)
             offset += innerOffset
         }
-        
-        console.log(entries)
-        console.log("---")
+
+
     }
 
-    return []
+    //console.log(util.inspect(messages, false, null, true /* enable colors */))
+    return messages
 }
 
 export const parseFile = (filePath) => {
