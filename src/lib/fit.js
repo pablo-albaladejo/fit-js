@@ -12,17 +12,21 @@ const formatByType = (data, type, scale, offset) => {
             if (FIT_CONSTANTS.types[type] && FIT_CONSTANTS.types[type][data] !== undefined) {
                 return FIT_CONSTANTS.types[type][data];
             }
-            return scale ? data / scale + offset : data;;
+            return scale ? data / scale + offset : data;
     }
 }
 
 const getDefinitionContent = (blob, offset, devFlag) => {
+    if (devFlag) {
+        console.log("ToDo: Dev definition fields") //ToDo: Dev definition fields
+    }
+
     var innerOffset = 5
     var fields = []
 
     const defHeader = getDefinitionHeader(blob, offset)
     const message_type = FIT_CONSTANTS.messages[defHeader.globalMessageNumber]
-
+    
     for (let i = 0; i < defHeader.numberOfFields; i++) {
         const message_type_field = blob[offset + innerOffset]
         const message_type_size = blob[offset + innerOffset + 1]
@@ -37,10 +41,6 @@ const getDefinitionContent = (blob, offset, devFlag) => {
         innerOffset += 3
     }
 
-    if (devFlag) {
-        console.log("ToDo: Dev definition fields") //ToDo: Dev definition fields
-    }
-
     return {
         definitionContent: {
             name: message_type.name,
@@ -51,6 +51,10 @@ const getDefinitionContent = (blob, offset, devFlag) => {
 }
 
 const getDataContent = (blob, offset, devFlag, definition) => {
+    if (devFlag) {
+        console.log("ToDo: Dev data fields") //ToDo: Dev data fields
+    }
+
     var innerOffset = 0
     var dataContent = []
     for (let definitionField of definition.fields) {
@@ -86,7 +90,7 @@ const getFitMessages = (blob, fitHeader) => {
             data: rawMessage.data
         }
         rawMessage.fields.forEach((item, field_index) => {
-            
+
             rawMessage.data.forEach(data_row => {
                 data_row[field_index] = formatByType(data_row[field_index], item.type.type, item.type.scale, item.type.offset)
             })
@@ -107,7 +111,6 @@ const getRawFitMessages = (blob, fitHeader) => {
     var messages = {}
 
     while (offset <= fitHeader.dataSize) {
-
         const messageHeader = getMessageHeader(blob[offset])
         offset++
 
@@ -121,8 +124,8 @@ const getRawFitMessages = (blob, fitHeader) => {
             messages[definitionContent.name] = createMessageRecord(definitionContent)
             definitions[messageHeader.localType] = definitionContent
 
-
             offset += innerOffset
+            //console.log('Definition message' ,util.inspect(definitionContent, false, null, true /* enable colors */))
         } else {
             const definition = definitions[messageHeader.localType]
 
@@ -133,12 +136,10 @@ const getRawFitMessages = (blob, fitHeader) => {
 
             messages[definition.name].data.push(dataContent)
             offset += innerOffset
+            //console.log('Data message' ,util.inspect(dataContent, false, null, true /* enable colors */))
         }
-
-
     }
 
-    //console.log(util.inspect(messages, false, null, true /* enable colors */))
     return messages
 }
 
