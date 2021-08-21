@@ -7,7 +7,8 @@
   },
   "scripts": {
     "start": "nodemon --exec babel-node src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watchAll"
   },
   "repository": {
     "type": "git",
@@ -29,6 +30,7 @@
     "@babel/core": "^7.14.8",
     "@babel/node": "^7.14.7",
     "@babel/preset-env": "^7.14.8",
+    "jest": "^27.0.6",
     "nodemon": "^2.0.12"
   }
 }
